@@ -1,7 +1,6 @@
 import 'package:contact_sms_app/models/favorite_model.dart';
 import 'package:flutter/foundation.dart';
 
-import '../models/contact_model.dart';
 import '../models/sms_model.dart';
 import 'contact_service.dart';
 import 'sms_service.dart';

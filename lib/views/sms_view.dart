@@ -4,7 +4,7 @@ import '../services/sms_service.dart';
 import '../widgets/sms_card.dart';
 
 class SmsView extends StatefulWidget {
-  const SmsView({Key? key}) : super(key: key);
+  const SmsView({super.key});
 
   @override
   State<SmsView> createState() => _SmsViewState();

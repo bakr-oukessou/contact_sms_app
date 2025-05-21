@@ -1,11 +1,9 @@
+import 'package:contact_sms_app/services/auth_service.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
-
+import 'firebase_options.dart';
 import 'models/contact_model.dart';
-import 'models/favorite_model.dart';
-import 'models/sms_model.dart';
 
 import 'services/firebase_service.dart';
 import 'services/contact_service.dart';
@@ -22,7 +20,7 @@ import 'views/contact_detail_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform,);
   runApp(
     MultiProvider(
       providers: [
@@ -38,7 +36,7 @@ void main() async {
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +55,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      initialRoute: '/auth',
+      initialRoute: '/home', // <-- Change this from '/auth' to '/home'
       routes: {
         '/auth': (context) => const AuthView(),
         '/home': (context) => const HomeView(),
@@ -76,7 +74,7 @@ class MyApp extends StatelessWidget {
 }
 
 class HomeView extends StatefulWidget {
-  const HomeView({Key? key}) : super(key: key);
+  const HomeView({super.key});
 
   @override
   State<HomeView> createState() => _HomeViewState();
@@ -144,7 +142,7 @@ class _HomeViewState extends State<HomeView> {
 }
 
 class AuthView extends StatelessWidget {
-  const AuthView({Key? key}) : super(key: key);
+  const AuthView({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -162,13 +160,18 @@ class AuthView extends StatelessWidget {
             const SizedBox(height: 40),
             const Text('Sign in with Google to continue'),
             const SizedBox(height: 20),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.login),
-              label: const Text('Sign in with Google'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              onPressed: () => _signInWithGoogle(context),
+            ElevatedButton(
+              onPressed: () async {
+                final user = await AuthService().signInWithGoogle();
+                if (user != null) {
+                  Navigator.pushReplacementNamed(context, '/home');
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Sign in failed')),
+                  );
+                }
+              },
+              child: Text('Sign in with Google'),
             ),
           ],
         ),
@@ -180,6 +183,7 @@ class AuthView extends StatelessWidget {
     try {
       final user = await Provider.of<FirebaseService>(context, listen: false)
           .signInWithGoogle();
+      print('Signed in user: $user');
       if (user != null) {
         // Initialize services after login
         await Provider.of<ContactService>(context, listen: false)
@@ -187,8 +191,11 @@ class AuthView extends StatelessWidget {
         await Provider.of<SmsService>(context, listen: false).getDeviceSms();
         await Provider.of<FavoritesService>(context, listen: false)
             .getAllFavorites();
-        
         Navigator.pushReplacementNamed(context, '/home');
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Google sign-in failed.')),
+        );
       }
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(

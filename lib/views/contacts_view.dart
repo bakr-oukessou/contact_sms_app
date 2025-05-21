@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:contacts_service/contacts_service.dart' as device_contacts;
+import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import '../models/contact_model.dart';
 import '../services/contact_service.dart';
 import '../widgets/contact_card.dart';
-import 'contact_detail_view.dart'; // <-- Add this import
+import 'contact_detail_view.dart';
 
 class ContactsView extends StatefulWidget {
-  const ContactsView({Key? key}) : super(key: key);
+  const ContactsView({super.key});
 
   @override
   State<ContactsView> createState() => _ContactsViewState();
@@ -25,16 +25,27 @@ class _ContactsViewState extends State<ContactsView> {
 
   Future<void> _loadContacts() async {
     try {
-      final deviceContacts = await device_contacts.ContactsService.getContacts();
+      // Request permission if not already granted
+      if (!await fc.FlutterContacts.requestPermission()) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Permission denied to read contacts')),
+        );
+        return;
+      }
+      final deviceContacts = await fc.FlutterContacts.getContacts(
+        withProperties: true,
+        withPhoto: true,
+      );
       final contacts = deviceContacts.map((c) => Contact(
-        displayName: c.displayName ?? '',
-        phones: c.phones?.isNotEmpty == true
-            ? c.phones!.map((e) => ContactPhone(value: e.value ?? '', label: e.label ?? '')).toList()
+        displayName: c.displayName,
+        phones: c.phones.isNotEmpty
+            ? c.phones.map((e) => ContactPhone(value: e.number, label: e.label.name ?? e.label.toString())).toList()
             : [],
-        emails: c.emails?.isNotEmpty == true
-            ? c.emails!.map((e) => ContactEmail(value: e.value ?? '', label: e.label ?? '')).toList()
+        emails: c.emails.isNotEmpty
+            ? c.emails.map((e) => ContactEmail(value: e.address, label: e.label.name ?? e.label.toString())).toList()
             : [],
-        avatar: c.avatar,
+        avatar: c.photo,
         createdAt: DateTime.now(),
       )).toList();
       setState(() {

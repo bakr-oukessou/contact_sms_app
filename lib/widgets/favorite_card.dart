@@ -9,12 +9,12 @@ class FavoriteCard extends StatelessWidget {
   final VoidCallback? onTap;
 
   const FavoriteCard({
-    Key? key,
+    super.key,
     required this.favorite,
     this.onCallPressed,
     this.onSmsPressed,
     this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -1,23 +1,43 @@
-import 'package:contacts_service/contacts_service.dart' as device_contacts;
+import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import 'package:flutter/widgets.dart';
 import '../models/contact_model.dart' as app_models;
 import 'firebase_service.dart';
 import 'package:firebase_database/firebase_database.dart';
 
-class ContactService extends ChangeNotifier{
+class ContactService extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
 
   Future<List<app_models.Contact>> getDeviceContacts() async {
     try {
-      final Iterable<device_contacts.Contact> contacts = await device_contacts.ContactsService.getContacts();
+      // Request permission if not already granted
+      if (!await fc.FlutterContacts.requestPermission()) {
+        print("Permission denied to read contacts");
+        return [];
+      }
+      final List<fc.Contact> contacts = await fc.FlutterContacts.getContacts(
+        withProperties: true,
+        withPhoto: true,
+      );
       return contacts.map((contact) => app_models.Contact(
-        identifier: contact.identifier,
+        identifier: contact.id,
         displayName: contact.displayName,
-        phones: contact.phones?.map((phone) => 
-          app_models.ContactPhone(value: phone.value, label: phone.label)).toList(),
-        emails: contact.emails?.map((email) => 
-          app_models.ContactEmail(value: email.value, label: email.label)).toList(),
-        avatar: contact.avatar,
+        phones: contact.phones.isNotEmpty
+            ? contact.phones
+                .map((phone) => app_models.ContactPhone(
+                      value: phone.number,
+                      label: phone.label.name ?? phone.label.toString(),
+                    ))
+                .toList()
+            : [],
+        emails: contact.emails.isNotEmpty
+            ? contact.emails
+                .map((email) => app_models.ContactEmail(
+                      value: email.address,
+                      label: email.label.name ?? email.label.toString(),
+                    ))
+                .toList()
+            : [],
+        avatar: contact.photo,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       )).toList();
@@ -28,23 +48,23 @@ class ContactService extends ChangeNotifier{
   }
 
   Future<void> backupContactsToFirebase(
-    String userId, 
+    String userId,
     List<app_models.Contact> contacts,
   ) async {
     try {
       final contactsRef = _firebaseService.getUserRef(userId).child('contacts');
-      
+
       for (final contact in contacts) {
         await contactsRef.child(contact.identifier!).set({
           'displayName': contact.displayName,
           'phones': contact.phones?.map((phone) => {
-            'value': phone.value,
-            'label': phone.label,
-          }).toList(),
+                'value': phone.value,
+                'label': phone.label,
+              }).toList(),
           'emails': contact.emails?.map((email) => {
-            'value': email.value,
-            'label': email.label,
-          }).toList(),
+                'value': email.value,
+                'label': email.label,
+              }).toList(),
           'avatar': contact.avatar,
           'createdAt': contact.createdAt?.millisecondsSinceEpoch,
           'updatedAt': ServerValue.timestamp,
@@ -61,29 +81,29 @@ class ContactService extends ChangeNotifier{
       final snapshot = await _firebaseService.getUserRef(userId)
           .child('contacts')
           .once();
-      
-      final Map<dynamic, dynamic>? contactsMap = 
+
+      final Map<dynamic, dynamic>? contactsMap =
           snapshot.snapshot.value as Map<dynamic, dynamic>?;
-      
+
       if (contactsMap == null) return [];
-      
+
       return contactsMap.entries.map((entry) {
         final data = entry.value as Map<dynamic, dynamic>;
         return app_models.Contact(
           identifier: entry.key,
           displayName: data['displayName'],
-          phones: (data['phones'] as List<dynamic>?)?.map((phone) => 
-            app_models.ContactPhone(
-              value: phone['value'],
-              label: phone['label'],
-            )).toList(),
-          emails: (data['emails'] as List<dynamic>?)?.map((email) => 
-            app_models.ContactEmail(
-              value: email['value'],
-              label: email['label'],
-            )).toList(),
+          phones: (data['phones'] as List<dynamic>?)?.map((phone) =>
+              app_models.ContactPhone(
+                value: phone['value'],
+                label: phone['label'],
+              )).toList(),
+          emails: (data['emails'] as List<dynamic>?)?.map((email) =>
+              app_models.ContactEmail(
+                value: email['value'],
+                label: email['label'],
+              )).toList(),
           avatar: data['avatar'],
-          createdAt: data['createdAt'] != null 
+          createdAt: data['createdAt'] != null
               ? DateTime.fromMillisecondsSinceEpoch(data['createdAt'])
               : null,
           updatedAt: data['updatedAt'] != null
@@ -100,14 +120,13 @@ class ContactService extends ChangeNotifier{
   Future<void> syncContacts(String userId) async {
     final deviceContacts = await getDeviceContacts();
     final cloudContacts = await restoreContactsFromFirebase(userId);
-    
+
     // Implement your sync logic here (compare and merge contacts)
-    // This is a basic example - you'll need to enhance it
     final contactsToUpdate = deviceContacts.where((deviceContact) {
-      return !cloudContacts.any((cloudContact) => 
+      return !cloudContacts.any((cloudContact) =>
           cloudContact.identifier == deviceContact.identifier);
     }).toList();
-    
+
     if (contactsToUpdate.isNotEmpty) {
       await backupContactsToFirebase(userId, contactsToUpdate);
     }

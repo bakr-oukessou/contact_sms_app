@@ -1,0 +1,55 @@
+{
+  "project_info": {
+    "project_number": "905646556994",
+    "firebase_url": "https://contact-sms-app-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "contact-sms-app",
+    "storage_bucket": "contact-sms-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:905646556994:android:549a71e1443c4244db6adb",
+        "android_client_info": {
+          "package_name": "com.example.contact_sms_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "905646556994-3jmnnvjp99bcnsss1m1diqfvmkohesk8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.contact_sms_app",
+            "certificate_hash": "2b2a80d54094d1f74a17c92481e3c1ff9e7a4d29"
+          }
+        },
+        {
+          "client_id": "905646556994-rcsgp37cgf076p4c19no1gl81213hlc7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4I1plGaBWbXNIIoG_NZ_HH0j9bsndO9Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "905646556994-rcsgp37cgf076p4c19no1gl81213hlc7.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "905646556994-5r748m18ianktm449b3duu7hgf43m01i.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.contactSmsApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
