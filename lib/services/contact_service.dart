@@ -3,14 +3,21 @@ import 'package:flutter/widgets.dart';
 import '../models/contact_model.dart' as app_models;
 import 'firebase_service.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ContactService extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+
+  Future<bool> _requestContactsPermission() async {
+    final status = await Permission.contacts.request();
+    return status.isGranted;
+  }
 
   Future<List<app_models.Contact>> getDeviceContacts() async {
     try {
       // Request permission if not already granted
-      if (!await fc.FlutterContacts.requestPermission()) {
+      if (!await _requestContactsPermission()) {
         print("Permission denied to read contacts");
         return [];
       }
@@ -18,32 +25,57 @@ class ContactService extends ChangeNotifier {
         withProperties: true,
         withPhoto: true,
       );
-      return contacts.map((contact) => app_models.Contact(
-        identifier: contact.id,
-        displayName: contact.displayName,
-        phones: contact.phones.isNotEmpty
-            ? contact.phones
-                .map((phone) => app_models.ContactPhone(
-                      value: phone.number,
-                      label: phone.label.name ?? phone.label.toString(),
-                    ))
-                .toList()
-            : [],
-        emails: contact.emails.isNotEmpty
-            ? contact.emails
-                .map((email) => app_models.ContactEmail(
-                      value: email.address,
-                      label: email.label.name ?? email.label.toString(),
-                    ))
-                .toList()
-            : [],
-        avatar: contact.photo,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      )).toList();
+      return contacts
+          .map((contact) => app_models.Contact(
+                identifier: contact.id,
+                displayName: contact.displayName,
+                phones: contact.phones.isNotEmpty
+                    ? contact.phones
+                        .map((phone) => app_models.ContactPhone(
+                              value: phone.number,
+                              label: phone.label.name ?? phone.label.toString(),
+                            ))
+                        .toList()
+                    : [],
+                emails: contact.emails.isNotEmpty
+                    ? contact.emails
+                        .map((email) => app_models.ContactEmail(
+                              value: email.address,
+                              label: email.label.name ?? email.label.toString(),
+                            ))
+                        .toList()
+                    : [],
+                avatar: contact.photo,
+                createdAt: DateTime.now(),
+                updatedAt: DateTime.now(),
+              ))
+          .toList();
     } catch (e) {
       print("Error getting contacts: $e");
       return [];
+    }
+  }
+
+  Future<void> initializeUserData(String userId) async {
+    try {
+      // Check if contacts data exists
+      final snapshot = await _dbRef.child('users/$userId/contacts').once();
+      if (snapshot.snapshot.value == null) {
+        // Get device contacts
+        final deviceContacts = await getDeviceContacts();
+        if (deviceContacts.isNotEmpty) {
+          // Initialize with device contacts
+          await backupContactsToFirebase(userId, deviceContacts);
+        } else {
+          // Initialize with empty structure
+          await _dbRef.child('users/$userId').update({
+            'contacts': {},
+          });
+        }
+      }
+    } catch (e) {
+      print("Error initializing contacts data: $e");
+      rethrow;
     }
   }
 

@@ -16,7 +16,7 @@ import 'views/sms_view.dart';
 import 'views/favorites_view.dart';
 import 'views/backup_restore_view.dart';
 import 'views/contact_detail_view.dart';
-// import 'views/auth_view.dart';
+import 'views/auth_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -55,7 +55,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      initialRoute: '/home', // <-- Change this from '/auth' to '/home'
+      initialRoute: '/auth', // <-- Change this from '/auth' to '/home'
       routes: {
         '/auth': (context) => const AuthView(),
         '/home': (context) => const HomeView(),
@@ -82,12 +82,39 @@ class HomeView extends StatefulWidget {
 
 class _HomeViewState extends State<HomeView> {
   int _currentIndex = 0;
-
   final List<Widget> _pages = [
     const ContactsView(),
     const SmsView(),
     const FavoritesView(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    final firebaseService = Provider.of<FirebaseService>(context, listen: false);
+    final userId = firebaseService.getCurrentUser()?.uid;
+    if (userId != null) {
+      try {
+        // Initialize services
+        await Provider.of<ContactService>(context, listen: false).initializeUserData(userId);
+        await Provider.of<SmsService>(context, listen: false).initializeUserData(userId);
+        
+        // Load data
+        await Provider.of<ContactService>(context, listen: false).syncContacts(userId);
+        await Provider.of<SmsService>(context, listen: false).syncSms(userId);
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error initializing data: $e')),
+          );
+        }
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -141,66 +168,66 @@ class _HomeViewState extends State<HomeView> {
   }
 }
 
-class AuthView extends StatelessWidget {
-  const AuthView({super.key});
+// class AuthView extends StatelessWidget {
+//   const AuthView({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Text(
-              'Contacts & SMS Backup',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 40),
-            Image.asset('assets/images/backup.png', width: 150),
-            const SizedBox(height: 40),
-            const Text('Sign in with Google to continue'),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () async {
-                final user = await AuthService().signInWithGoogle();
-                if (user != null) {
-                  Navigator.pushReplacementNamed(context, '/home');
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Sign in failed')),
-                  );
-                }
-              },
-              child: Text('Sign in with Google'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+//   @override
+//   Widget build(BuildContext context) {
+//     return Scaffold(
+//       body: Center(
+//         child: Column(
+//           mainAxisAlignment: MainAxisAlignment.center,
+//           children: [
+//             const Text(
+//               'Contacts & SMS Backup',
+//               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+//             ),
+//             const SizedBox(height: 40),
+//             Image.asset('assets/images/backup.png', width: 150),
+//             const SizedBox(height: 40),
+//             const Text('Sign in with Google to continue'),
+//             const SizedBox(height: 20),
+//             ElevatedButton(
+//               onPressed: () async {
+//                 final user = await AuthService().signInWithGoogle();
+//                 if (user != null) {
+//                   Navigator.pushReplacementNamed(context, '/home');
+//                 } else {
+//                   ScaffoldMessenger.of(context).showSnackBar(
+//                     SnackBar(content: Text('Sign in failed')),
+//                   );
+//                 }
+//               },
+//               child: Text('Sign in with Google'),
+//             ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
 
-  Future<void> _signInWithGoogle(BuildContext context) async {
-    try {
-      final user = await Provider.of<FirebaseService>(context, listen: false)
-          .signInWithGoogle();
-      print('Signed in user: $user');
-      if (user != null) {
-        // Initialize services after login
-        await Provider.of<ContactService>(context, listen: false)
-            .getDeviceContacts();
-        await Provider.of<SmsService>(context, listen: false).getDeviceSms();
-        await Provider.of<FavoritesService>(context, listen: false)
-            .getAllFavorites();
-        Navigator.pushReplacementNamed(context, '/home');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Google sign-in failed.')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign in failed: $e')),
-      );
-    }
-  }
-}
+//   Future<void> _signInWithGoogle(BuildContext context) async {
+//     try {
+//       final user = await Provider.of<FirebaseService>(context, listen: false)
+//           .signInWithGoogle();
+//       print('Signed in user: $user');
+//       if (user != null) {
+//         // Initialize services after login
+//         await Provider.of<ContactService>(context, listen: false)
+//             .getDeviceContacts();
+//         await Provider.of<SmsService>(context, listen: false).getDeviceSms();
+//         await Provider.of<FavoritesService>(context, listen: false)
+//             .getAllFavorites();
+//         Navigator.pushReplacementNamed(context, '/home');
+//       } else {
+//         ScaffoldMessenger.of(context).showSnackBar(
+//           const SnackBar(content: Text('Google sign-in failed.')),
+//         );
+//       }
+//     } catch (e) {
+//       ScaffoldMessenger.of(context).showSnackBar(
+//         SnackBar(content: Text('Sign in failed: $e')),
+//       );
+//     }
+//   }
+// }

@@ -7,6 +7,7 @@ import 'firebase_service.dart';
 class SmsService extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
   final Telephony telephony = Telephony.instance;
+  final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
   Future<List<my_models.SmsMessage>> getDeviceSms() async {
     try {
@@ -118,6 +119,24 @@ class SmsService extends ChangeNotifier {
 
     if (newSms.isNotEmpty) {
       await backupSmsToFirebase(userId, newSms);
+    }
+  }
+
+  Future<void> initializeUserData(String userId) async {
+    try {
+      // Check if SMS data exists
+      final snapshot = await _dbRef.child('users/$userId/sms').once();
+      if (snapshot.snapshot.value == null) {
+        // Get device SMS
+        final deviceSms = await getDeviceSms();
+        if (deviceSms.isNotEmpty) {
+          // Initialize with device SMS
+          await backupSmsToFirebase(userId, deviceSms);
+        }
+      }
+    } catch (e) {
+      print("Error initializing SMS data: $e");
+      rethrow;
     }
   }
 }

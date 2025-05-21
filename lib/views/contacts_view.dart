@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_contacts/flutter_contacts.dart' as fc;
+import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import '../models/contact_model.dart';
 import '../services/contact_service.dart';
 import '../widgets/contact_card.dart';
@@ -24,39 +26,46 @@ class _ContactsViewState extends State<ContactsView> {
   }
 
   Future<void> _loadContacts() async {
+    setState(() => _isLoading = true);
     try {
-      // Request permission if not already granted
-      if (!await fc.FlutterContacts.requestPermission()) {
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Permission denied to read contacts')),
+      final contactService = Provider.of<ContactService>(context, listen: false);
+      final contacts = await contactService.getDeviceContacts();
+      
+      if (contacts.isEmpty) {
+        bool shouldRequestAgain = await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text("Contacts Permission Required"),
+            content: const Text("We need access to your contacts to backup them securely"),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text("Cancel"),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text("Grant Permission"),
+              ),
+            ],
+          ),
         );
-        return;
+        
+        if (shouldRequestAgain == true) {
+          await openAppSettings();
+        }
       }
-      final deviceContacts = await fc.FlutterContacts.getContacts(
-        withProperties: true,
-        withPhoto: true,
-      );
-      final contacts = deviceContacts.map((c) => Contact(
-        displayName: c.displayName,
-        phones: c.phones.isNotEmpty
-            ? c.phones.map((e) => ContactPhone(value: e.number, label: e.label.name ?? e.label.toString())).toList()
-            : [],
-        emails: c.emails.isNotEmpty
-            ? c.emails.map((e) => ContactEmail(value: e.address, label: e.label.name ?? e.label.toString())).toList()
-            : [],
-        avatar: c.photo,
-        createdAt: DateTime.now(),
-      )).toList();
+      
       setState(() {
         _contacts = contacts;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load contacts: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load contacts: $e')),
+        );
+      }
     }
   }
 

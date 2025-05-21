@@ -8,6 +8,12 @@ class FirebaseService extends ChangeNotifier {
   final GoogleSignIn _googleSignIn = GoogleSignIn();
   final DatabaseReference _database = FirebaseDatabase.instance.ref();
 
+  User? get currentUser => _auth.currentUser;
+
+  User? getCurrentUser() {
+    return _auth.currentUser;
+  }
+
   Future<User?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
