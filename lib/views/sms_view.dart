@@ -1,4 +1,7 @@
+import 'package:contact_sms_app/services/firebase_service.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:provider/provider.dart';
 import '../models/sms_model.dart';
 import '../services/sms_service.dart';
 import '../widgets/sms_card.dart';
@@ -21,18 +24,96 @@ class _SmsViewState extends State<SmsView> {
   }
 
   Future<void> _loadSms() async {
+    setState(() => _isLoading = true);
     try {
-      final smsList = await SmsService().getDeviceSms();
-      final grouped = _groupByContact(smsList);
-      setState(() {
-        _conversations.addAll(grouped);
-        _isLoading = false;
-      });
+      // Request permissions first
+      Map<Permission, PermissionStatus> statuses = await [
+        Permission.sms,
+        Permission.phone,
+      ].request();
+
+      if (!statuses.values.every((status) => status.isGranted)) {
+        if (!mounted) return;
+        bool shouldOpenSettings = await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Permissions Required'),
+            content: const Text(
+              'SMS and Phone permissions are required to read your messages. '
+              'Please grant these permissions in settings.'
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+        ) ?? false;
+
+        if (shouldOpenSettings) {
+          await openAppSettings();
+          // Wait a bit for settings to be changed
+          await Future.delayed(const Duration(seconds: 2));
+          // Try loading again
+          if (mounted) {
+            _loadSms();
+          }
+          return;
+        }
+      }
+
+      final smsService = Provider.of<SmsService>(context, listen: false);
+      final smsList = await smsService.getDeviceSms();
+      print("Got ${smsList.length} messages from service");
+
+      if (smsList.isEmpty) {
+        if (!mounted) return;
+        bool shouldOpenSettings = await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('SMS Permission Required'),
+            content: const Text('Please grant SMS permissions to view your messages.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+        ) ?? false;
+
+        if (shouldOpenSettings) {
+          await openAppSettings();
+        }
+      } else {
+        final grouped = _groupByContact(smsList);
+        if (mounted) {
+          setState(() {
+            _conversations.clear();
+            _conversations.addAll(grouped);
+          });
+        }
+      }
     } catch (e) {
-      setState(() => _isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to load SMS: $e')),
-      );
+      print("Error loading SMS: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to load SMS: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -93,11 +174,21 @@ class _SmsViewState extends State<SmsView> {
 
   Future<void> _backupSms() async {
     try {
+      final smsService = Provider.of<SmsService>(context, listen: false);
+      final firebaseService = Provider.of<FirebaseService>(context, listen: false);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Backing up SMS...')),
       );
-      final smsList = await SmsService().getDeviceSms();
-      await SmsService().backupSmsToFirebase('user-id', smsList);
+
+      final userId = firebaseService.getCurrentUser()?.uid;
+      if (userId == null) {
+        throw Exception('User not logged in');
+      }
+
+      final smsList = await smsService.getDeviceSms();
+      await smsService.backupSmsToFirebase(userId, smsList);
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('SMS backed up successfully')),
       );

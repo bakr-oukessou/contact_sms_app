@@ -1,36 +1,86 @@
 import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
-import 'package:telephony/telephony.dart';
+import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../models/sms_model.dart' as my_models;
 import 'firebase_service.dart';
 
 class SmsService extends ChangeNotifier {
   final FirebaseService _firebaseService = FirebaseService();
-  final Telephony telephony = Telephony.instance;
+  final SmsQuery _query = SmsQuery();
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
+
+  Future<bool> _requestSmsPermission() async {
+    try {
+      // Check if permission is already granted
+      var status = await Permission.sms.status;
+      if (status.isGranted) return true;
+
+      // Request SMS permission
+      status = await Permission.sms.request();
+      if (status.isPermanentlyDenied) {
+        // Permission is permanently denied, take user to app settings
+        return false;
+      }
+
+      return status.isGranted;
+    } catch (e) {
+      print("Error requesting SMS permission: $e");
+      return false;
+    }
+  }
 
   Future<List<my_models.SmsMessage>> getDeviceSms() async {
     try {
-      final List<my_models.SmsMessage> smsList = [];
-      final List<SmsMessage> messages = await telephony.getInboxSms(
-        columns: [SmsColumn.ADDRESS, SmsColumn.BODY, SmsColumn.DATE, SmsColumn.TYPE, SmsColumn.READ],
-        sortOrder: [OrderBy(SmsColumn.DATE, sort: Sort.DESC)],
-      );
-      for (final msg in messages) {
-        smsList.add(
-          my_models.SmsMessage(
-            id: msg.id?.toString() ?? '',
-            address: msg.address,
-            body: msg.body,
-            date: msg.date != null ? DateTime.fromMillisecondsSinceEpoch(msg.date!) : null,
-            type: msg.type?.index,
-            isRead: msg.read == 1,
-          ),
-        );
+      print("Starting SMS fetch...");
+      
+      // Request both SMS and phone permissions
+      var smsPermission = await Permission.sms.status;
+      if (!smsPermission.isGranted) {
+        smsPermission = await Permission.sms.request();
+        if (!smsPermission.isGranted) {
+          print("SMS permission not granted");
+          return [];
+        }
       }
+
+      print("Fetching SMS messages...");
+      final List<SmsMessage> messages = await _query.querySms(
+        kinds: [SmsQueryKind.inbox, SmsQueryKind.sent],
+        address: null, // Get all messages
+        count: 1000, // Increase message count
+        sort: true, // Sort by date
+      );
+      
+      print("Raw messages count: ${messages.length}");
+      final List<my_models.SmsMessage> smsList = [];
+      
+      for (final msg in messages) {
+        try {
+          if (msg.body != null && msg.body!.isNotEmpty) {
+            print("Processing message from: ${msg.address}");
+            smsList.add(
+              my_models.SmsMessage(
+                id: msg.id?.toString() ?? DateTime.now().toString(),
+                address: msg.address ?? 'Unknown',
+                body: msg.body ?? '',
+                date: msg.date ?? DateTime.now(),
+                type: msg.kind?.index ?? 0,
+                isRead: msg.read ?? false,
+              ),
+            );
+          }
+        } catch (e) {
+          print("Error processing message: $e");
+          continue;
+        }
+      }
+
+      print("Successfully processed ${smsList.length} messages");
       return smsList;
     } catch (e) {
       print("Error getting SMS: $e");
+      print("Stack trace: ${StackTrace.current}");
       return [];
     }
   }
