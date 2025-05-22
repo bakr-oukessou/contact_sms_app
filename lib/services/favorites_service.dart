@@ -1,3 +1,4 @@
+import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:sqflite/sqflite.dart';
@@ -82,20 +83,62 @@ class FavoritesService extends ChangeNotifier {
     try {
       final favorites = await getAllFavorites();
       final favoritesRef = _firebaseService.getUserRef(userId).child('favorites');
-
-      for (final favorite in favorites) {
-        await favoritesRef.child(favorite.id).set({
-          'contactId': favorite.contactId,
-          'name': favorite.name,
-          'callCount': favorite.callCount,
-          'smsCount': favorite.smsCount,
-          'lastInteraction': favorite.lastInteraction.millisecondsSinceEpoch,
-          'createdAt': favorite.createdAt.millisecondsSinceEpoch,
-          'avatar': favorite.avatar?.toList(),
-        });
-      }
+      
+      await favoritesRef.set({
+        'lastSynced': ServerValue.timestamp,
+        'items': favorites.map((f) => {
+          'id': f.id,
+          'contactId': f.contactId,
+          'name': f.name,
+          'callCount': f.callCount,
+          'smsCount': f.smsCount,
+          'lastInteraction': f.lastInteraction.millisecondsSinceEpoch,
+          'createdAt': f.createdAt.millisecondsSinceEpoch,
+          'avatar': f.avatar?.toList(),
+        }).toList(),
+      });
+      
+      notifyListeners();
     } catch (e) {
-      print("Error syncing favorites: $e");
+      print('Error syncing favorites to Firebase: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> restoreFavoritesFromFirebase(String userId) async {
+    try {
+      final snapshot = await _firebaseService.getUserRef(userId)
+          .child('favorites/items')
+          .once();
+
+      final List<dynamic>? favoritesList = snapshot.snapshot.value as List<dynamic>?;
+      if (favoritesList == null) return;
+
+      final db = await database;
+      await db.transaction((txn) async {
+        // Clear existing favorites
+        await txn.delete('favorites');
+        
+        // Insert restored favorites
+        for (final item in favoritesList) {
+          await txn.insert('favorites', {
+            'id': item['id'],
+            'contactId': item['contactId'],
+            'name': item['name'],
+            'callCount': item['callCount'],
+            'smsCount': item['smsCount'],
+            'lastInteraction': item['lastInteraction'],
+            'createdAt': item['createdAt'],
+            'avatar': item['avatar'] != null 
+                ? Uint8List.fromList(List<int>.from(item['avatar']))
+                : null,
+          });
+        }
+      });
+      
+      notifyListeners();
+    } catch (e) {
+      print('Error restoring favorites from Firebase: $e');
       rethrow;
     }
   }

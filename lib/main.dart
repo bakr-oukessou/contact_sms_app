@@ -42,15 +42,20 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Contacts & SMS Backup',
       theme: ThemeData(
-        primarySwatch: Colors.blue,
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF6750A4),
+          brightness: Brightness.light,
+        ),
         appBarTheme: const AppBarTheme(
           elevation: 0,
           centerTitle: true,
+          backgroundColor: Colors.transparent,
+          foregroundColor: Color(0xFF6750A4),
           titleTextStyle: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
+            fontSize: 22,
+            fontWeight: FontWeight.w600,
+            color: Color(0xFF6750A4),
           ),
         ),
       ),
@@ -117,40 +122,44 @@ class _HomeViewState extends State<HomeView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Contacts & SMS Backup'),
-        backgroundColor: Color.fromARGB(255, 155, 117, 207),
         actions: [
           IconButton(
-            icon: const Icon(Icons.cloud_upload),
-            color: Colors.deepOrangeAccent,
+            icon: const Icon(Icons.cloud_sync_rounded),
             onPressed: () => Navigator.pushNamed(context, '/backup'),
             tooltip: 'Backup/Restore',
           ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            color: Colors.black,
-            onPressed: () => _signOut(context),
-            tooltip: 'Sign Out',
+          Padding(
+            padding: const EdgeInsets.only(right: 8.0),
+            child: IconButton(
+              icon: const Icon(Icons.logout_rounded),
+              onPressed: () => _signOut(context),
+              tooltip: 'Sign Out',
+            ),
           ),
         ],
       ),
       body: _pages[_currentIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) => setState(() => _currentIndex = index),
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.contacts),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.contacts_outlined),
+            selectedIcon: Icon(Icons.contacts_rounded),
             label: 'Contacts',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.message),
+          NavigationDestination(
+            icon: Icon(Icons.message_outlined),
+            selectedIcon: Icon(Icons.message_rounded),
             label: 'SMS',
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.star),
+          NavigationDestination(
+            icon: Icon(Icons.star_outline_rounded),
+            selectedIcon: Icon(Icons.star_rounded),
             label: 'Favorites',
           ),
         ],
@@ -162,14 +171,20 @@ class _HomeViewState extends State<HomeView> {
     final shouldSignOut = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Sign Out'),
+        title: Text(
+          'Sign Out',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.primary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         content: const Text('Are you sure you want to sign out?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          FilledButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text('Sign Out'),
           ),

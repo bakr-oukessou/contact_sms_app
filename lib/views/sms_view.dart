@@ -15,6 +15,7 @@ class SmsView extends StatefulWidget {
 
 class _SmsViewState extends State<SmsView> {
   final Map<String, List<SmsMessage>> _conversations = {};
+  final Map<String, String> _contactNames = {};
   bool _isLoading = true;
 
   @override
@@ -69,37 +70,18 @@ class _SmsViewState extends State<SmsView> {
 
       final smsService = Provider.of<SmsService>(context, listen: false);
       final smsList = await smsService.getDeviceSms();
-      print("Got ${smsList.length} messages from service");
-
-      if (smsList.isEmpty) {
-        if (!mounted) return;
-        bool shouldOpenSettings = await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('SMS Permission Required'),
-            content: const Text('Please grant SMS permissions to view your messages.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Open Settings'),
-              ),
-            ],
-          ),
-        ) ?? false;
-
-        if (shouldOpenSettings) {
-          await openAppSettings();
-        }
-      } else {
+      
+      if (smsList.isNotEmpty) {
+        final phoneNumbers = smsList.map((sms) => sms.address ?? '').toSet();
+        final contactNames = await smsService.getContactNames(phoneNumbers);
+        
         final grouped = _groupByContact(smsList);
         if (mounted) {
           setState(() {
             _conversations.clear();
             _conversations.addAll(grouped);
+            _contactNames.clear();
+            _contactNames.addAll(contactNames);
           });
         }
       }
@@ -135,41 +117,202 @@ class _SmsViewState extends State<SmsView> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('SMS Conversations'),
+        title: const Text('Messages'),
+        elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.cloud_upload),
+            icon: const Icon(Icons.cloud_upload_outlined),
             onPressed: _backupSms,
             tooltip: 'Backup to Cloud',
           ),
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Loading messages...',
+                    style: theme.textTheme.bodyLarge,
+                  ),
+                ],
+              ),
+            )
           : _conversations.isEmpty
-              ? const Center(child: Text('No SMS conversations'))
+              ? Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.message_outlined,
+                        size: 64,
+                        color: theme.colorScheme.primary.withOpacity(0.5),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No messages found',
+                        style: theme.textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Your SMS conversations will appear here',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
               : ListView.builder(
                   itemCount: _conversations.length,
                   itemBuilder: (context, index) {
                     final address = _conversations.keys.elementAt(index);
                     final messages = _conversations[address]!;
-                    return ExpansionTile(
-                      title: Text(address),
-                      subtitle: Text(messages.first.body ?? ''),
-                      children: [
-                        for (int i = 0; i < messages.length; i++)
-                          SmsCard(
-                            sms: messages[i],
-                            isFirstInGroup: i == 0,
-                            isLastInGroup: i == messages.length - 1,
+                    final latestMessage = messages.first;
+                    
+                    return Card(
+                      margin: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        side: BorderSide(
+                          color: theme.colorScheme.outline.withOpacity(0.2),
+                        ),
+                      ),
+                      child: ExpansionTile(
+                        leading: CircleAvatar(
+                          backgroundColor: theme.colorScheme.primaryContainer,
+                          child: Text(
+                            (_contactNames[address] ?? address).substring(0, 1).toUpperCase(),
+                            style: TextStyle(
+                              color: theme.colorScheme.onPrimaryContainer,
+                            ),
                           ),
-                      ],
+                        ),
+                        title: Text(
+                          _contactNames[address] ?? address,
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text(
+                              latestMessage.body ?? '',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            if (latestMessage.date != null)
+                              Text(
+                                _formatDate(latestMessage.date!),
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                ),
+                              ),
+                          ],
+                        ),
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: messages.map((sms) => _buildMessageBubble(sms, theme)).toList(),
+                            ),
+                          ),
+                        ],
+                      ),
                     );
                   },
                 ),
     );
+  }
+
+  Widget _buildMessageBubble(SmsMessage sms, ThemeData theme) {
+    final isReceived = sms.type == 1; // Adjust based on your SMS type values
+    
+    return Align(
+      alignment: isReceived ? Alignment.centerLeft : Alignment.centerRight,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isReceived 
+              ? theme.colorScheme.surface 
+              : theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(16),
+          border: isReceived
+              ? Border.all(color: theme.colorScheme.outline.withOpacity(0.2))
+              : null,
+        ),
+        child: Column(
+          crossAxisAlignment: isReceived 
+              ? CrossAxisAlignment.start 
+              : CrossAxisAlignment.end,
+          children: [
+            Text(
+              sms.body ?? '',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: isReceived
+                    ? theme.colorScheme.onSurface
+                    : theme.colorScheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _formatDate(sms.date!),
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: (isReceived
+                        ? theme.colorScheme.onSurface
+                        : theme.colorScheme.onPrimaryContainer)
+                    .withOpacity(0.6),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      return 'Today ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays == 1) {
+      return 'Yesterday ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } else if (difference.inDays < 7) {
+      return '${_getWeekday(date)} ${date.hour}:${date.minute.toString().padLeft(2, '0')}';
+    } else {
+      return '${date.day}/${date.month}/${date.year}';
+    }
+  }
+
+  String _getWeekday(DateTime date) {
+    switch (date.weekday) {
+      case 1: return 'Monday';
+      case 2: return 'Tuesday';
+      case 3: return 'Wednesday';
+      case 4: return 'Thursday';
+      case 5: return 'Friday';
+      case 6: return 'Saturday';
+      case 7: return 'Sunday';
+      default: return '';
+    }
   }
 
   Future<void> _backupSms() async {

@@ -2,6 +2,7 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import '../models/sms_model.dart' as my_models;
 import 'firebase_service.dart';
 
@@ -191,5 +192,30 @@ class SmsService extends ChangeNotifier {
       print("Error initializing SMS data: $e");
       rethrow;
     }
+  }
+
+  Future<Map<String, String>> getContactNames(Set<String> phoneNumbers) async {
+    try {
+      final contacts = await fc.FlutterContacts.getContacts(
+        withProperties: true,
+      );
+      
+      final Map<String, String> result = {};
+      for (final number in phoneNumbers) {
+        final contact = contacts.firstWhere(
+          (c) => c.phones.any((p) => _normalizePhone(p.number) == _normalizePhone(number)),
+          orElse: () => fc.Contact(phones: []),
+        );
+        result[number] = contact.displayName.isNotEmpty ? contact.displayName : number;
+      }
+      return result;
+    } catch (e) {
+      print('Error getting contact names: $e');
+      return {};
+    }
+  }
+
+  String _normalizePhone(String phone) {
+    return phone.replaceAll(RegExp(r'[^\d+]'), '');
   }
 }
