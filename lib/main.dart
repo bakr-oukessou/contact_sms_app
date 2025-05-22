@@ -120,14 +120,17 @@ class _HomeViewState extends State<HomeView> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Contacts & SMS Backup'),
+        backgroundColor: Color.fromARGB(255, 155, 117, 207),
         actions: [
           IconButton(
             icon: const Icon(Icons.cloud_upload),
+            color: Colors.deepOrangeAccent,
             onPressed: () => Navigator.pushNamed(context, '/backup'),
             tooltip: 'Backup/Restore',
           ),
           IconButton(
             icon: const Icon(Icons.logout),
+            color: Colors.black,
             onPressed: () => _signOut(context),
             tooltip: 'Sign Out',
           ),
@@ -156,13 +159,33 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Future<void> _signOut(BuildContext context) async {
-    try {
-      await Provider.of<FirebaseService>(context, listen: false).signOut();
-      Navigator.pushReplacementNamed(context, '/auth');
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Sign out failed: $e')),
-      );
+    final shouldSignOut = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSignOut == true) {
+      try {
+        await Provider.of<FirebaseService>(context, listen: false).signOut();
+        Navigator.pushReplacementNamed(context, '/auth');
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sign out failed: $e')),
+        );
+      }
     }
   }
 }

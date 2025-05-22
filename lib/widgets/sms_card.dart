@@ -16,25 +16,42 @@ class SmsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final bool isSent = sms.type == 2;
-    final color = isSent ? Colors.blue[100] : Colors.grey[200];
-    final alignment = isSent ? Alignment.centerRight : Alignment.centerLeft;
+    final colorScheme = theme.colorScheme;
+    final bgColor = isSent 
+        ? colorScheme.primaryContainer 
+        : colorScheme.surfaceContainerHighest;
+    final textColor = isSent
+        ? colorScheme.onPrimaryContainer
+        : colorScheme.onSurface;
 
     return Container(
       margin: EdgeInsets.only(
-        top: isFirstInGroup ? 8 : 2,
-        bottom: isLastInGroup ? 8 : 2,
+        top: isFirstInGroup ? 8 : 4,
+        bottom: isLastInGroup ? 8 : 4,
       ),
       child: Align(
-        alignment: alignment,
+        alignment: isSent ? Alignment.centerRight : Alignment.centerLeft,
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: MediaQuery.of(context).size.width * 0.8,
+            maxWidth: MediaQuery.of(context).size.width * 0.78,
           ),
-          child: Card(
-            color: color,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(isSent ? 16 : 4),
+                topRight: Radius.circular(isSent ? 4 : 16),
+                bottomLeft: Radius.circular(16),
+                bottomRight: Radius.circular(16),
+              ),
+              color: bgColor,
+            ),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16,
+                vertical: 12,
+              ),
               child: Column(
                 crossAxisAlignment: isSent 
                     ? CrossAxisAlignment.end 
@@ -42,14 +59,15 @@ class SmsCard extends StatelessWidget {
                 children: [
                   Text(
                     sms.body ?? '',
-                    style: const TextStyle(fontSize: 14),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: textColor,
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
                     _formatDate(sms.date),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: Colors.grey[600],
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: textColor.withOpacity(0.6),
                     ),
                   ),
                 ],

@@ -78,7 +78,7 @@ class SyncService extends ChangeNotifier {
   Future<void> restoreFromBackup(String userId) async {
     try {
       // Restore contacts
-      final cloudContacts = await _contactService.restoreContactsFromFirebase(userId);
+      final _ = await _contactService.restoreContactsFromFirebase(userId);
       // Here you would implement saving to device (not directly possible on all devices)
       
       // Restore SMS
@@ -88,7 +88,9 @@ class SyncService extends ChangeNotifier {
       // Update favorites based on interaction counts from SMS
       await _updateFavoritesFromSms(cloudSms);
     } catch (e) {
-      print("Error restoring from backup: $e");
+      if (kDebugMode) {
+        print("Error restoring from backup: $e");
+      }
       rethrow;
     }
   }

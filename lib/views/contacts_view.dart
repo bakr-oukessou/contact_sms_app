@@ -3,6 +3,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../models/contact_model.dart';
 import '../services/contact_service.dart';
+import '../services/favorites_service.dart';
 import '../widgets/contact_card.dart';
 import 'contact_detail_view.dart';
 
@@ -15,6 +16,7 @@ class ContactsView extends StatefulWidget {
 
 class _ContactsViewState extends State<ContactsView> {
   List<Contact> _contacts = [];
+  Set<String> _favoriteIds = {};
   bool _isLoading = true;
   String _searchQuery = '';
 
@@ -22,6 +24,7 @@ class _ContactsViewState extends State<ContactsView> {
   void initState() {
     super.initState();
     _loadContacts();
+    _loadFavorites();
   }
 
   Future<void> _loadContacts() async {
@@ -68,11 +71,44 @@ class _ContactsViewState extends State<ContactsView> {
     }
   }
 
+  Future<void> _loadFavorites() async {
+    try {
+      final favoritesService = Provider.of<FavoritesService>(context, listen: false);
+      final favorites = await favoritesService.getAllFavorites();
+      setState(() {
+        _favoriteIds = favorites.map((f) => f.contactId).toSet();
+      });
+    } catch (e) {
+      print('Error loading favorites: $e');
+    }
+  }
+
   List<Contact> get _filteredContacts {
     if (_searchQuery.isEmpty) return _contacts;
     return _contacts.where((contact) {
       return contact.displayName?.toLowerCase().contains(_searchQuery.toLowerCase()) ?? false;
     }).toList();
+  }
+
+  Future<void> _toggleFavorite(Contact contact) async {
+    try {
+      final favoritesService = Provider.of<FavoritesService>(context, listen: false);
+      if (_favoriteIds.contains(contact.identifier)) {
+        await favoritesService.removeFavorite(contact.identifier!);
+        setState(() => _favoriteIds.remove(contact.identifier));
+      } else {
+        await favoritesService.addToFavorites(
+          contact.identifier!,
+          contact.displayName ?? 'Unknown',
+          avatar: contact.avatar,
+        );
+        setState(() => _favoriteIds.add(contact.identifier!));
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to update favorite: $e')),
+      );
+    }
   }
 
   @override
@@ -115,6 +151,8 @@ class _ContactsViewState extends State<ContactsView> {
                           return ContactCard(
                             contact: contact,
                             onTap: () => _showContactDetails(contact),
+                            isFavorite: _favoriteIds.contains(contact.identifier),
+                            onFavoriteChanged: (_) => _toggleFavorite(contact),
                           );
                         },
                       ),

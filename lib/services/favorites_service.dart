@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter_contacts/flutter_contacts.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/favorite_model.dart';
+import 'firebase_service.dart';
 
 class FavoritesService extends ChangeNotifier {
+  final FirebaseService _firebaseService = FirebaseService();
   static Database? _database;
 
   Future<Database> get database async {
@@ -75,17 +78,58 @@ class FavoritesService extends ChangeNotifier {
     );
   }
 
-  Future<void> incrementInteractionCount(
-    String contactId, {
-    bool isCall = false,
-  }) async {
-    final db = await database;
-    await db.rawUpdate('''
-      UPDATE favorites 
-      SET ${isCall ? 'callCount' : 'smsCount'} = ${isCall ? 'callCount' : 'smsCount'} + 1,
-          lastInteraction = ?
-      WHERE contactId = ?
-    ''', [DateTime.now().millisecondsSinceEpoch, contactId]);
+  Future<void> syncFavoritesToFirebase(String userId) async {
+    try {
+      final favorites = await getAllFavorites();
+      final favoritesRef = _firebaseService.getUserRef(userId).child('favorites');
+
+      for (final favorite in favorites) {
+        await favoritesRef.child(favorite.id).set({
+          'contactId': favorite.contactId,
+          'name': favorite.name,
+          'callCount': favorite.callCount,
+          'smsCount': favorite.smsCount,
+          'lastInteraction': favorite.lastInteraction.millisecondsSinceEpoch,
+          'createdAt': favorite.createdAt.millisecondsSinceEpoch,
+          'avatar': favorite.avatar?.toList(),
+        });
+      }
+    } catch (e) {
+      print("Error syncing favorites: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> incrementInteractionCount(String contactId, {bool isCall = false}) async {
+    try {
+      final db = await database;
+      final favorite = await getFavorite(contactId);
+
+      if (favorite != null) {
+        final updatedFavorite = Favorite(
+          id: favorite.id,
+          contactId: favorite.contactId,
+          name: favorite.name,
+          callCount: isCall ? favorite.callCount + 1 : favorite.callCount,
+          smsCount: isCall ? favorite.smsCount : favorite.smsCount + 1,
+          lastInteraction: DateTime.now(),
+          createdAt: favorite.createdAt,
+          avatar: favorite.avatar,
+        );
+
+        await db.update(
+          'favorites',
+          updatedFavorite.toMap(),
+          where: 'id = ?',
+          whereArgs: [favorite.id],
+        );
+
+        notifyListeners();
+      }
+    } catch (e) {
+      print("Error incrementing interaction count: $e");
+      rethrow;
+    }
   }
 
   Future<void> removeFavorite(String id) async {
@@ -100,5 +144,62 @@ class FavoritesService extends ChangeNotifier {
   Future<void> close() async {
     final db = await database;
     await db.close();
+  }
+
+  Future<List<FavoriteStats>> getInteractionStats() async {
+    final db = await database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'favorites',
+      columns: ['contactId', 'name', 'callCount', 'smsCount', 'lastInteraction'],
+    );
+
+    return maps.map((map) {
+      final totalInteractions = map['callCount'] + map['smsCount'];
+      final callPercentage = map['callCount'] / totalInteractions;
+
+      return FavoriteStats(
+        contactId: map['contactId'],
+        name: map['name'],
+        totalInteractions: totalInteractions,
+        callPercentage: callPercentage,
+        lastInteraction: DateTime.fromMillisecondsSinceEpoch(map['lastInteraction']),
+      );
+    }).toList();
+  }
+
+  Future<void> addToFavorites(String contactId, String name, {Uint8List? avatar}) async {
+    final favorite = Favorite(
+      id: contactId,
+      contactId: contactId,
+      name: name,
+      callCount: 0,
+      smsCount: 0,
+      lastInteraction: DateTime.now(),
+      createdAt: DateTime.now(),
+      avatar: avatar,
+    );
+    await addFavorite(favorite);
+    notifyListeners();
+  }
+
+  Future<bool> isFavorite(String contactId) async {
+    final db = await database;
+    final result = await db.query(
+      'favorites',
+      where: 'contactId = ?',
+      whereArgs: [contactId],
+      limit: 1,
+    );
+    return result.isNotEmpty;
+  }
+
+  Future<String?> getContactPhone(String contactId) async {
+    try {
+      final contact = await FlutterContacts.getContact(contactId);
+      return contact?.phones.firstOrNull?.number;
+    } catch (e) {
+      print("Error getting contact phone: $e");
+      return null;
+    }
   }
 }

@@ -10,6 +10,7 @@ class SmsService extends ChangeNotifier {
   final SmsQuery _query = SmsQuery();
   final DatabaseReference _dbRef = FirebaseDatabase.instance.ref();
 
+  // ignore: unused_element
   Future<bool> _requestSmsPermission() async {
     try {
       // Check if permission is already granted
@@ -25,7 +26,9 @@ class SmsService extends ChangeNotifier {
 
       return status.isGranted;
     } catch (e) {
-      print("Error requesting SMS permission: $e");
+      if (kDebugMode) {
+        print("Error requesting SMS permission: $e");
+      }
       return false;
     }
   }

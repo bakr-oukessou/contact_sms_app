@@ -18,19 +18,33 @@ class ContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(
+          color: theme.dividerColor.withOpacity(0.5),
+          width: 1,
+        ),
+      ),
       child: InkWell(
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
+        splashColor: colorScheme.primary.withOpacity(0.1),
+        highlightColor: colorScheme.primary.withOpacity(0.05),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              _buildAvatar(),
+              _buildAvatar(theme),
               const SizedBox(width: 16),
-              _buildContactInfo(),
+              _buildContactInfo(theme),
               const Spacer(),
-              _buildFavoriteButton(),
+              _buildFavoriteButton(colorScheme),
             ],
           ),
         ),
@@ -38,53 +52,85 @@ class ContactCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar() {
-    return CircleAvatar(
-      radius: 24,
-      backgroundImage: contact.avatar != null 
-          ? MemoryImage(contact.avatar!) 
-          : null,
-      child: contact.avatar == null
-          ? Text(contact.displayName?.substring(0, 1) ?? '?',
-              style: const TextStyle(fontSize: 20))
-          : null,
+  Widget _buildAvatar(ThemeData theme) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: contact.avatar == null
+            ? LinearGradient(
+                colors: [
+                  theme.colorScheme.primaryContainer,
+                  theme.colorScheme.secondaryContainer,
+                ],
+              )
+            : null,
+      ),
+      child: CircleAvatar(
+        radius: 24,
+        backgroundColor: Colors.transparent,
+        foregroundImage: contact.avatar != null 
+            ? MemoryImage(contact.avatar!) 
+            : null,
+        child: contact.avatar == null
+            ? Text(
+                contact.displayName?.substring(0, 1).toUpperCase() ?? '?',
+                style: TextStyle(
+                  fontSize: 20,
+                  color: theme.colorScheme.onPrimaryContainer,
+                  fontWeight: FontWeight.w500,
+                ),
+              )
+            : null,
+      ),
     );
   }
 
-  Widget _buildContactInfo() {
+  Widget _buildContactInfo(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           contact.displayName ?? 'Unknown',
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
-        if (contact.phones?.isNotEmpty ?? false)
+        if (contact.phones?.isNotEmpty ?? false) ...[
+          const SizedBox(height: 4),
           Text(
             contact.phones!.first.value ?? '',
-            style: const TextStyle(color: Colors.grey),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.6),
+            ),
           ),
-        if (contact.createdAt != null)
+        ],
+        if (contact.createdAt != null) ...[
+          const SizedBox(height: 4),
           Text(
-            'Created: ${DateFormat('MMM d, y').format(contact.createdAt!)}',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+            'Added ${DateFormat('MMM d, y').format(contact.createdAt!)}',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurface.withOpacity(0.4),
+            ),
           ),
+        ],
       ],
     );
   }
 
-  Widget _buildFavoriteButton() {
-    if (onFavoriteChanged == null) return const SizedBox();
-
+  Widget _buildFavoriteButton(ColorScheme colorScheme) {
     return IconButton(
       icon: Icon(
-        isFavorite ? Icons.star : Icons.star_border,
-        color: isFavorite ? Colors.amber : Colors.grey,
+        isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+        color: isFavorite ? colorScheme.primary : colorScheme.outline,
+        size: 24,
       ),
       onPressed: () => onFavoriteChanged?.call(!isFavorite),
+      tooltip: isFavorite ? 'Remove from favorites' : 'Add to favorites',
+      splashRadius: 20,
     );
   }
 }
