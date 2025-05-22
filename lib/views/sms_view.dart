@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:contact_sms_app/services/firebase_service.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -14,88 +16,98 @@ class SmsView extends StatefulWidget {
 }
 
 class _SmsViewState extends State<SmsView> {
-  final Map<String, List<SmsMessage>> _conversations = {};
+  Map<String, List<SmsMessage>> _conversations = {};
   final Map<String, String> _contactNames = {};
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
+    _setupSmsListener();
     _loadSms();
   }
 
-  Future<void> _loadSms() async {
-    setState(() => _isLoading = true);
-    try {
-      // Request permissions first
-      Map<Permission, PermissionStatus> statuses = await [
-        Permission.sms,
-        Permission.phone,
-      ].request();
+  void _setupSmsListener() {
+    final smsService = Provider.of<SmsService>(context, listen: false);
+    smsService.addListener(_handleSmsUpdate);
+  }
 
-      if (!statuses.values.every((status) => status.isGranted)) {
-        if (!mounted) return;
-        bool shouldOpenSettings = await showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Permissions Required'),
-            content: const Text(
-              'SMS and Phone permissions are required to read your messages. '
-              'Please grant these permissions in settings.'
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Open Settings'),
-              ),
-            ],
-          ),
-        ) ?? false;
-
-        if (shouldOpenSettings) {
-          await openAppSettings();
-          // Wait a bit for settings to be changed
-          await Future.delayed(const Duration(seconds: 2));
-          // Try loading again
-          if (mounted) {
-            _loadSms();
-          }
-          return;
-        }
-      }
-
-      final smsService = Provider.of<SmsService>(context, listen: false);
-      final smsList = await smsService.getDeviceSms();
-      
-      if (smsList.isNotEmpty) {
-        final phoneNumbers = smsList.map((sms) => sms.address ?? '').toSet();
-        final contactNames = await smsService.getContactNames(phoneNumbers);
-        
-        final grouped = _groupByContact(smsList);
+  void _handleSmsUpdate() {
+    if (!mounted) return;
+    
+    final smsService = Provider.of<SmsService>(context, listen: false);
+    final messages = smsService.messages;
+    
+    if (messages.isNotEmpty) {
+      final phoneNumbers = messages.map((sms) => sms.address ?? '').toSet();
+      smsService.getContactNames(phoneNumbers).then((contactNames) {
         if (mounted) {
           setState(() {
-            _conversations.clear();
-            _conversations.addAll(grouped);
+            _conversations = _groupByContact(messages);
             _contactNames.clear();
             _contactNames.addAll(contactNames);
           });
         }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    final smsService = Provider.of<SmsService>(context, listen: false);
+    smsService.removeListener(_handleSmsUpdate);
+    super.dispose();
+  }
+
+  // Update _loadSms to use cached messages when available
+  Future<void> _loadSms({bool fromCloud = false}) async {
+    if (!mounted) return;
+    
+    setState(() => _isLoading = true);
+    try {
+      final smsService = Provider.of<SmsService>(context, listen: false);
+      final firebaseService = Provider.of<FirebaseService>(context, listen: false);
+      
+      final userId = firebaseService.getCurrentUser()?.uid;
+      if (userId == null) {
+        throw Exception('User not logged in');
+      }
+
+      List<SmsMessage> messages;
+      if (fromCloud) {
+        messages = await smsService.restoreSmsFromFirebase(userId);
+        // Give time for messages to be written
+        await Future.delayed(const Duration(seconds: 2));
+        // Refresh from device
+        messages = await smsService.getDeviceSms();
+      } else {
+        messages = await smsService.getDeviceSms();
+      }
+
+      if (!mounted) return;
+
+      if (messages.isNotEmpty) {
+        final phoneNumbers = messages.map((sms) => sms.address ?? '').toSet();
+        final contactNames = await smsService.getContactNames(phoneNumbers);
+        
+        setState(() {
+          _conversations = _groupByContact(messages);
+          _contactNames.clear();
+          _contactNames.addAll(contactNames);
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _conversations.clear();
+          _isLoading = false;
+        });
       }
     } catch (e) {
-      print("Error loading SMS: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load SMS: $e')),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to load SMS: $e')),
+      );
     }
   }
 
@@ -339,6 +351,26 @@ class _SmsViewState extends State<SmsView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Backup failed: $e')),
       );
+    }
+  }
+
+  Future<void> _syncWithDevice() async {
+    try {
+      final smsService = Provider.of<SmsService>(context, listen: false);
+      final deviceMessages = await smsService.getDeviceSms();
+      
+      // Get IDs of device messages
+      final deviceMessageIds = deviceMessages.map((m) => m.id).toSet();
+      
+      // Filter out messages that don't exist on device
+      setState(() {
+        _conversations.removeWhere((address, messages) {
+          messages.removeWhere((msg) => !deviceMessageIds.contains(msg.id));
+          return messages.isEmpty;
+        });
+      });
+    } catch (e) {
+      print('Error syncing with device: $e');
     }
   }
 }

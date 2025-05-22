@@ -8,7 +8,7 @@ abstract class SmsHandler {
 }
 
 class SmsHandlerImpl extends SmsHandler {
-  static const platform = MethodChannel('your_channel_name/sms');
+  static const platform = MethodChannel('contacts/sms');
 
   @override
   Future<List<SmsMessage>> getSmsMessages() async {
@@ -40,6 +40,36 @@ class SmsHandlerImpl extends SmsHandler {
       return await platform.invokeMethod('requestSmsPermissions');
     } on PlatformException catch (e) {
       print("Failed to request permissions: ${e.message}");
+      return false;
+    }
+  }
+
+  static Future<bool> writeSmsToDevice({
+    required String address,
+    required String body,
+    required int date,
+    required bool isRead,
+  }) async {
+    try {
+      await platform.invokeMethod('writeSms', {
+        'address': address,
+        'body': body,
+        'date': date,
+        'isRead': isRead,
+      });
+      return true;
+    } on PlatformException catch (e) {
+      print("Failed to write SMS: ${e.message}");
+      return false;
+    }
+  }
+
+  static Future<bool> deleteSmsFromDevice(String id) async {
+    try {
+      await platform.invokeMethod('deleteSms', {'id': id});
+      return true;
+    } on PlatformException catch (e) {
+      print("Failed to delete SMS: ${e.message}");
       return false;
     }
   }
