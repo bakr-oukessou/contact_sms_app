@@ -142,114 +142,125 @@ class _SmsViewState extends State<SmsView> {
           ),
         ],
       ),
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Loading messages...',
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                ],
-              ),
-            )
-          : _conversations.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+      body: RefreshIndicator(
+        onRefresh: () => _loadSms(fromCloud: false),
+        child: _isLoading
+            ? Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const CircularProgressIndicator(),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Loading messages...',
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                  ],
+                ),
+              )
+            : _conversations.isEmpty
+                ? ListView(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     children: [
-                      Icon(
-                        Icons.message_outlined,
-                        size: 64,
-                        color: theme.colorScheme.primary.withOpacity(0.5),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No messages found',
-                        style: theme.textTheme.titleLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Your SMS conversations will appear here',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurface.withOpacity(0.6),
+                      SizedBox(
+                        height: MediaQuery.of(context).size.height * 0.4,
+                        child: Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.message_outlined,
+                                size: 64,
+                                color: theme.colorScheme.primary.withOpacity(0.5),
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No messages found',
+                                style: theme.textTheme.titleLarge,
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                'Your SMS conversations will appear here',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
-                  ),
-                )
-              : ListView.builder(
-                  itemCount: _conversations.length,
-                  itemBuilder: (context, index) {
-                    final address = _conversations.keys.elementAt(index);
-                    final messages = _conversations[address]!;
-                    final latestMessage = messages.first;
-                    
-                    return Card(
-                      margin: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        side: BorderSide(
-                          color: theme.colorScheme.outline.withOpacity(0.2),
+                  )
+                : ListView.builder(
+                    itemCount: _conversations.length,
+                    itemBuilder: (context, index) {
+                      final address = _conversations.keys.elementAt(index);
+                      final messages = _conversations[address]!;
+                      final latestMessage = messages.first;
+                      
+                      return Card(
+                        margin: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                      ),
-                      child: ExpansionTile(
-                        leading: CircleAvatar(
-                          backgroundColor: theme.colorScheme.primaryContainer,
-                          child: Text(
-                            (_contactNames[address] ?? address).substring(0, 1).toUpperCase(),
-                            style: TextStyle(
-                              color: theme.colorScheme.onPrimaryContainer,
-                            ),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: theme.colorScheme.outline.withOpacity(0.2),
                           ),
                         ),
-                        title: Text(
-                          _contactNames[address] ?? address,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Text(
-                              latestMessage.body ?? '',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                color: theme.colorScheme.onSurface.withOpacity(0.6),
+                        child: ExpansionTile(
+                          leading: CircleAvatar(
+                            backgroundColor: theme.colorScheme.primaryContainer,
+                            child: Text(
+                              (_contactNames[address] ?? address).substring(0, 1).toUpperCase(),
+                              style: TextStyle(
+                                color: theme.colorScheme.onPrimaryContainer,
                               ),
                             ),
-                            const SizedBox(height: 4),
-                            if (latestMessage.date != null)
+                          ),
+                          title: Text(
+                            _contactNames[address] ?? address,
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
                               Text(
-                                _formatDate(latestMessage.date!),
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                latestMessage.body ?? '',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurface.withOpacity(0.6),
                                 ),
                               ),
+                              const SizedBox(height: 4),
+                              if (latestMessage.date != null)
+                                Text(
+                                  _formatDate(latestMessage.date!),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurface.withOpacity(0.4),
+                                  ),
+                                ),
+                            ],
+                          ),
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                children: messages.map((sms) => _buildMessageBubble(sms, theme)).toList(),
+                              ),
+                            ),
                           ],
                         ),
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              children: messages.map((sms) => _buildMessageBubble(sms, theme)).toList(),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+                      );
+                    },
+                  ),
+      ),
     );
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../models/contact_model.dart';
@@ -124,40 +125,51 @@ class _ContactsViewState extends State<ContactsView> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search contacts...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(20),
+      body: RefreshIndicator(
+        onRefresh: _loadContacts,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: TextField(
+                decoration: InputDecoration(
+                  hintText: 'Search contacts...',
+                  prefixIcon: const Icon(Icons.search),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
                 ),
+                onChanged: (value) => setState(() => _searchQuery = value),
               ),
-              onChanged: (value) => setState(() => _searchQuery = value),
             ),
-          ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _filteredContacts.isEmpty
-                    ? const Center(child: Text('No contacts found'))
-                    : ListView.builder(
-                        itemCount: _filteredContacts.length,
-                        itemBuilder: (context, index) {
-                          final contact = _filteredContacts[index];
-                          return ContactCard(
-                            contact: contact,
-                            onTap: () => _showContactDetails(contact),
-                            isFavorite: _favoriteIds.contains(contact.identifier),
-                            onFavoriteChanged: (_) => _toggleFavorite(contact),
-                          );
-                        },
-                      ),
-          ),
-        ],
+            Expanded(
+              child: _isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _filteredContacts.isEmpty
+                      ? ListView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          children: const [
+                            SizedBox(
+                              height: 200,
+                              child: Center(child: Text('No contacts found')),
+                            ),
+                          ],
+                        )
+                      : ListView.builder(
+                          itemCount: _filteredContacts.length,
+                          itemBuilder: (context, index) {
+                            final contact = _filteredContacts[index];
+                            return ContactCard(
+                              contact: contact,
+                              onTap: () => _showContactDetails(contact),
+                              isFavorite: _favoriteIds.contains(contact.identifier),
+                              onFavoriteChanged: (_) => _toggleFavorite(contact),
+                            );
+                          },
+                        ),
+            ),
+          ],
+        ),
       ),
     );
   }

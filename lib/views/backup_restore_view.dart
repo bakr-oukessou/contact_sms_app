@@ -197,29 +197,35 @@ class BackupRestoreView extends StatelessWidget {
       final contactService = Provider.of<ContactService>(context, listen: false);
       
       final userId = firebaseService.getCurrentUser()?.uid;
-      if (userId == null) {
-        throw Exception('User not logged in');
-      }
+      if (userId == null) throw Exception('User not logged in');
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Restoring contacts...')),
+        const SnackBar(content: Text('Restoring contacts from cloud...')),
       );
 
-      final contacts = await contactService.restoreContactsFromFirebase(userId);
+      final deviceContactsBefore = await contactService.getDeviceContacts();
+      print("Device contacts before restore: ${deviceContactsBefore.length}");
+
+      final restoredContacts = await contactService.restoreContactsFromFirebase(userId);
       
-      if (contacts.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No contacts found in backup')),
-        );
-        return;
-      }
+      final deviceContactsAfter = await contactService.getDeviceContacts();
+      print("Device contacts after restore: ${deviceContactsAfter.length}");
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('${contacts.length} contacts restored successfully')),
-      );
+      final newContactsCount = deviceContactsAfter.length - deviceContactsBefore.length;
+      
+      if (newContactsCount > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Successfully restored $newContactsCount contacts')),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No new contacts to restore')),
+        );
+      }
     } catch (e) {
+      print("Error in _restoreContacts: $e");
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Restore failed: $e')),
+        SnackBar(content: Text('Restore failed: ${e.toString()}')),
       );
     }
   }
