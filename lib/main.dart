@@ -103,11 +103,9 @@ class _HomeViewState extends State<HomeView> {
     final userId = firebaseService.getCurrentUser()?.uid;
     if (userId != null) {
       try {
-        // Initialize services
         await Provider.of<ContactService>(context, listen: false).initializeUserData(userId);
         await Provider.of<SmsService>(context, listen: false).initializeUserData(userId);
         
-        // Load data
         await Provider.of<ContactService>(context, listen: false).syncContacts(userId);
         await Provider.of<SmsService>(context, listen: false).syncSms(userId);
       } catch (e) {
